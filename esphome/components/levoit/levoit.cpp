@@ -116,6 +116,8 @@ bool Levoit::validate_message_() {
   // If it's not a 1-byte ACK response, handle the payload.
   if (data[1] != 0x12 || payloadLength - 3 != 1) {
     this->handle_payload_(payloadType, sequenceNumber, payload_data, payloadLength - 3);
+  } else if (data[1] == 0x12) {
+    ESP_LOGV(TAG, "Received ACK (%06x)", (uint32_t) payloadType);
   }
 
   // acknowledge packet if required
@@ -192,6 +194,11 @@ void Levoit::send_raw_command(LevoitCommand command) {
   }
   rawPacket[5] = checksum;
 
+  const char *packetTypeStr = (command.packetType == LevoitPacketType::ACK_MESSAGE)
+                                  ? "ACK"
+                                  : ((command.packetType == LevoitPacketType::SEND_MESSAGE) ? "CMD" : "UNKNOWN");
+  ESP_LOGV(TAG, "Sending %s (%06x): %s", packetTypeStr, (uint32_t) command.payloadType,
+           format_hex_pretty(rawPacket.data(), rawPacket.size()).c_str());
   this->write_array(rawPacket);
 }
 

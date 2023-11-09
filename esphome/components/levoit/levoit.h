@@ -64,6 +64,7 @@ class Levoit : public Component, public uart::UARTDevice {
   void register_listener(LevoitPayloadType payloadType, const std::function<void(uint8_t *buf, size_t len)> &func);
   uint32_t get_model_specific_payload_type(LevoitPayloadType type);
   void send_command(const LevoitCommand &command);
+  void set_device_model(std::string model);
 
  protected:
   bool validate_message_();

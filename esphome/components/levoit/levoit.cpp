@@ -8,7 +8,7 @@ namespace esphome {
 namespace levoit {
 
 static const char *const TAG = "levoit";
-static const int COMMAND_DELAY = 50;
+static const int COMMAND_DELAY = 100;  // 50ms seems too low at least on the 400s; lots of NACK errors; 100ms is better
 static const int RECEIVE_TIMEOUT = 100;
 static const int MAX_RETRIES = 5;
 
@@ -23,29 +23,35 @@ void Levoit::setup() {
     this->send_command(statusRequest);
   });
 
-  this->set_interval("status", 5000, [this] {
-    if (network::is_connected()) {
-      if (remote_is_connected()) {
-        // solid
-        LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::SET_WIFI_STATUS_LED,
-                                       .packetType = LevoitPacketType::SEND_MESSAGE,
-                                       .payload = {0x00, 0x01, 0x7D, 0x00, 0x7D, 0x00, 0x00}};
-        this->send_command(statusRequest);
+  // this seems to introduce significant message unreliability on the 400s;
+  // we must be approaching mcu capacity
+  // TODO: ideally there is some way in the protocol to determine wifi light status,
+  // which would allow us to only send commands if needed
+  if (this->device_model_ != LevoitDeviceModel::CORE_400S) {
+    this->set_interval("status", 5000, [this] {
+      if (network::is_connected()) {
+        if (remote_is_connected()) {
+          // solid
+          LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::SET_WIFI_STATUS_LED,
+                                         .packetType = LevoitPacketType::SEND_MESSAGE,
+                                         .payload = {0x00, 0x01, 0x7D, 0x00, 0x7D, 0x00, 0x00}};
+          this->send_command(statusRequest);
+        } else {
+          // blink
+          LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::SET_WIFI_STATUS_LED,
+                                         .packetType = LevoitPacketType::SEND_MESSAGE,
+                                         .payload = {0x00, 0x02, 0xF4, 0x01, 0xF4, 0x01, 0x00}};
+          this->send_command(statusRequest);
+        }
       } else {
-        // blink
+        // off
         LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::SET_WIFI_STATUS_LED,
                                        .packetType = LevoitPacketType::SEND_MESSAGE,
-                                       .payload = {0x00, 0x02, 0xF4, 0x01, 0xF4, 0x01, 0x00}};
+                                       .payload = {0x00, 0x00, 0xF4, 0x01, 0xF4, 0x01, 0x00}};
         this->send_command(statusRequest);
       }
-    } else {
-      // off
-      LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::SET_WIFI_STATUS_LED,
-                                     .packetType = LevoitPacketType::SEND_MESSAGE,
-                                     .payload = {0x00, 0x00, 0xF4, 0x01, 0xF4, 0x01, 0x00}};
-      this->send_command(statusRequest);
-    }
-  });
+    });
+  }
 }
 
 void Levoit::loop() {

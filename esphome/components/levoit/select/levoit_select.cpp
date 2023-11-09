@@ -34,9 +34,23 @@ void LevoitSelect::setup() {
 void LevoitSelect::control(const std::string &value) {
   if (this->purpose_ == LevoitSelectPurpose::PURIFIER_FAN_MODE) {
     if (value == "Manual") {
-      this->parent_->send_command(LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE,
-                                                .packetType = LevoitPacketType::SEND_MESSAGE,
-                                                .payload = {0x00, 0x00}});
+      switch (this->parent_->device_model_) {
+        case LevoitDeviceModel::CORE_400S:
+          // enter manual mode by setting speed
+          // TODO: would be nice to set to last known speed setting; but
+          // can't access that from here afaik
+          this->parent_->send_command(LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MANUAL,
+                                                    .packetType = LevoitPacketType::SEND_MESSAGE,
+                                                    .payload = {0x00, 0x00, 0x01, 0x01}});
+          break;
+
+        default:
+          // set fan mode = 0
+          this->parent_->send_command(LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE,
+                                                    .packetType = LevoitPacketType::SEND_MESSAGE,
+                                                    .payload = {0x00, 0x00}});
+      }
+
     } else if (value == "Sleep") {
       this->parent_->send_command(LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MODE,
                                                 .packetType = LevoitPacketType::SEND_MESSAGE,

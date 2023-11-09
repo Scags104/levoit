@@ -17,7 +17,15 @@ void LevoitSwitch::setup() {
       this->publish_state(currentMasterPowerState);
     }
     if (this->purpose_ == DISPLAY_ON) {
-      bool currentDisplayPowerState = buf[7] != 0x00;
+      bool currentDisplayPowerState;
+      switch (this->parent_->device_model_) {
+        case LevoitDeviceModel::CORE_400S:
+          // also could be 8, which is 0 when off and 64 when on
+          currentDisplayPowerState = buf[9] != 0x00;
+          break;
+        default:
+          currentDisplayPowerState = buf[7] != 0x00;
+      }
       this->publish_state(currentDisplayPowerState);
     }
   });

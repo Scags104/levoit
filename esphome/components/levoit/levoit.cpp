@@ -14,6 +14,7 @@ static const int MAX_RETRIES = 5;
 
 void Levoit::setup() {
   this->set_interval("heartbeat", 15000, [this] {
+    ESP_LOGV(TAG, "Sending heartbeat");
     LevoitCommand statusRequest = {.payloadType = LevoitPayloadType::STATUS_REQUEST,
                                    .packetType = LevoitPacketType::SEND_MESSAGE,
                                    .payload = {0x00}};
@@ -148,7 +149,7 @@ void Levoit::handle_payload_(LevoitPayloadType type, uint8_t sequenceNumber, uin
   ESP_LOGV(TAG, "Received command (%06x): %s", (uint32_t) type, format_hex_pretty(payload, len).c_str());
   // Run through listeners
   for (auto &listener : this->listeners_) {
-    if (listener.type == type)
+    if (listener.type == static_cast<LevoitPayloadType>(get_model_specific_payload_type(type)))
       listener.func(payload, len);
   }
 }
@@ -156,7 +157,7 @@ void Levoit::handle_payload_(LevoitPayloadType type, uint8_t sequenceNumber, uin
 void Levoit::register_listener(LevoitPayloadType payloadType,
                                const std::function<void(uint8_t *buf, size_t len)> &func) {
   auto listener = LevoitListener{
-      .type = payloadType,
+      .type = static_cast<LevoitPayloadType>(get_model_specific_payload_type(payloadType)),
       .func = func,
   };
   this->listeners_.push_back(listener);
@@ -235,8 +236,22 @@ void Levoit::process_command_queue_() {
 }
 
 void Levoit::send_command(const LevoitCommand &command) {
-  command_queue_.push_back(command);
+  auto modified_command = command;
+  modified_command.payloadType = static_cast<LevoitPayloadType>(get_model_specific_payload_type(command.payloadType));
+  command_queue_.push_back(modified_command);
   process_command_queue_();
+}
+
+uint32_t Levoit::get_model_specific_payload_type(LevoitPayloadType type) {
+  auto model_itr = MODEL_SPECIFIC_PAYLOAD_TYPES.find(device_model_);
+  if (model_itr != MODEL_SPECIFIC_PAYLOAD_TYPES.end()) {
+    auto payload_itr = model_itr->second.find(type);
+    if (payload_itr != model_itr->second.end()) {
+      return payload_itr->second;
+    }
+  }
+  // If no override is found, return the default payload
+  return static_cast<uint32_t>(type);
 }
 
 }  // namespace levoit

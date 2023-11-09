@@ -6,11 +6,12 @@
 #include "esphome/components/uart/uart.h"
 
 #include <vector>
+#include <unordered_map>
 
 namespace esphome {
 namespace levoit {
 
-enum class LevoitDeviceModel : uint8_t { NONE, CORE_300S };
+enum class LevoitDeviceModel : uint8_t { NONE, CORE_300S, CORE_400S };
 
 enum class LevoitPacketType : uint8_t { SEND_MESSAGE = 0x22, ACK_MESSAGE = 0x12, ERROR = 0x52 };
 
@@ -42,14 +43,26 @@ typedef struct LevoitCommand {
   std::vector<uint8_t> payload;
 } LevoitPacket;
 
+using PayloadTypeOverrideMap = std::unordered_map<LevoitDeviceModel, std::unordered_map<LevoitPayloadType, uint32_t>>;
+
+static const PayloadTypeOverrideMap MODEL_SPECIFIC_PAYLOAD_TYPES = {
+    {LevoitDeviceModel::CORE_400S,
+     {
+         {LevoitPayloadType::STATUS_REQUEST, 0x01b140}, {LevoitPayloadType::STATUS_RESPONSE, 0x01b040},
+         // ... add other model-specific overrides here ...
+     }},
+    // ... add other device models and their overrides here ...
+};
+
 class Levoit : public Component, public uart::UARTDevice {
  public:
-  
+  LevoitDeviceModel device_model_ = LevoitDeviceModel::CORE_300S;
   float get_setup_priority() const override { return setup_priority::LATE; }
   void setup() override;
   void loop() override;
   void dump_config() override;
   void register_listener(LevoitPayloadType payloadType, const std::function<void(uint8_t *buf, size_t len)> &func);
+  uint32_t get_model_specific_payload_type(LevoitPayloadType type);
   void send_command(const LevoitCommand &command);
 
  protected:

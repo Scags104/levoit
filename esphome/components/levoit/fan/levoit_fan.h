@@ -20,6 +20,7 @@ class LevoitFan : public Component, public fan::Fan {
   Levoit *parent_;
 
  private:
+  bool power;
   uint8_t fanMode;
   uint8_t reportedManualFanSpeed;
   uint8_t currentFanSpeed;

@@ -54,8 +54,10 @@ fan::FanTraits LevoitFan::get_traits() {
 }
 
 void LevoitFan::control(const fan::FanCall &call) {
+  bool newPowerState = this->state;
+
   if (call.get_state().has_value()) {
-    bool newPowerState = *call.get_state();
+    newPowerState = *call.get_state();
 
     switch (this->parent_->device_model_) {
       case LevoitDeviceModel::CORE_400S:
@@ -63,8 +65,7 @@ void LevoitFan::control(const fan::FanCall &call) {
         this->parent_->send_command(LevoitCommand{.payloadType = LevoitPayloadType::SET_POWER_STATE,
                                                   .packetType = LevoitPacketType::SEND_MESSAGE,
                                                   .payload = {0x00, newPowerState}});
-
-        return;  // fan speed adjustment should not occur when setting main power state
+        break;
       default:
         // fan switch controls auto mode
         if (newPowerState == true) {
@@ -82,10 +83,18 @@ void LevoitFan::control(const fan::FanCall &call) {
   if (call.get_speed().has_value()) {
     uint8_t targetSpeed = *call.get_speed();
 
-    if (targetSpeed == 0 && this->parent_->device_model_ == LevoitDeviceModel::CORE_400S) {
-      // fan speed can report as 0-speed (auto mode), but setting to 0-speed results in error
-      // set to 1 instead
-      targetSpeed = 1;
+    // 400s-specific behavior
+    if (this->parent_->device_model_ == LevoitDeviceModel::CORE_400S) {
+      // if fan is off, we don't set speed
+      if (newPowerState == false) {
+        return;
+      }
+
+      if (targetSpeed == 0) {
+        // fan speed can report as 0-speed (auto mode), but setting to 0-speed results in error
+        // set to 1 instead
+        targetSpeed = 1;
+      }
     }
 
     this->parent_->send_command(LevoitCommand{.payloadType = LevoitPayloadType::SET_FAN_MANUAL,
